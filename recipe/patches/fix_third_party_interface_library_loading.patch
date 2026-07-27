@@ -1,0 +1,80 @@
+diff --git a/test/third-party-interface/test_third_party_interface.py b/test/third-party-interface/test_third_party_interface.py
+index bc6b5ea3..39c65ba9 100644
+--- a/test/third-party-interface/test_third_party_interface.py
++++ b/test/third-party-interface/test_third_party_interface.py
+@@ -11,6 +11,7 @@ This test ensures that such third-party extensions can be built correctly.
+ 
+ import os
+ import subprocess
++import sys
+ 
+ from pathlib import Path
+ 
+@@ -18,6 +19,31 @@ import torch
+ import torchcodec
+ 
+ 
++def _load_built_library(build_dir):
++    ver = f"{torchcodec.ffmpeg_major_version}"
++
++    if os.name == "nt":
++        suffixes = [".dll"]
++    elif sys.platform == "darwin":
++        suffixes = [".dylib", ".so"]
++    else:
++        suffixes = [".so"]
++
++    candidates = []
++    for suffix in suffixes:
++        candidates.extend(
++            build_dir.rglob(f"torchcodec_third_party_interface_test{ver}{suffix}")
++        )
++
++    assert candidates, f"Could not find built third-party test library in {build_dir}"
++    lib = str(sorted(candidates)[0])
++    return subprocess.run(
++        [sys.executable, "-c", f"import torch; torch.ops.load_library({lib!r})"],
++        cwd=build_dir,
++    )
++
++
++
+ def test_third_party_interface_pkgconfig(tmp_path):
+     # Test building of third-party-interface. Since
+     # TORCHCODEC_FFMPEG{ver}_INSTALL_PREFIX is not provided, FFmpeg should be
+@@ -35,16 +61,8 @@ def test_third_party_interface_pkgconfig(tmp_path):
+     result = subprocess.run(["cmake", "--build", "."], cwd=tmp_path)
+     assert result.returncode == 0
+ 
+-    # loading built .so in the separate process to avoid flooding current process
+-    ver = f"{torchcodec.ffmpeg_major_version}"
+-    result = subprocess.run(
+-        [
+-            "python3",
+-            "-c",
+-            f"import torch; torch.ops.load_library('torchcodec_third_party_interface_test{ver}.so')",
+-        ],
+-        cwd=tmp_path,
+-    )
++    # Loading in a separate process avoids flooding the current process.
++    result = _load_built_library(tmp_path)
+     assert result.returncode == 0
+ 
+ 
+@@ -101,14 +119,6 @@ def test_third_party_interface_with_prefix(tmp_path):
+     result = subprocess.run(["cmake", "--build", "."], cwd=tmp_path)
+     assert result.returncode == 0
+ 
+-    # loading built .so in the separate process to avoid flooding current process
+-    ver = f"{torchcodec.ffmpeg_major_version}"
+-    result = subprocess.run(
+-        [
+-            "python3",
+-            "-c",
+-            f"import torch; torch.ops.load_library('torchcodec_third_party_interface_test{ver}.so')",
+-        ],
+-        cwd=tmp_path,
+-    )
++    # Loading in a separate process avoids flooding the current process.
++    result = _load_built_library(tmp_path)
+     assert result.returncode == 0
