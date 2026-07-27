@@ -31,8 +31,8 @@ outputs:
     version: {{ version }}
     build: 
       number: {{ build_num }}
-      script_env:
-        - CUDA_HOME={{ PREFIX }}
+      missing_dso_whitelist:
+        - "$RPATH/libtorchcodec_core8.so"
     script: build_torchcodec.sh # [unix]
     script: build_torchcodec.bat # [win]
     requirements:
@@ -40,7 +40,7 @@ outputs:
         - {{ compiler('cxx') }}
         - {{ compiler('c') }}
         - {{ stdlib("c") }}
-        - {{ compiler('cuda') }} # [cuda_compiler_version != None]
+        - {{ compiler('cuda') }} # [gpu_variant=="cuda"]
         # - if: cuda_compiler_version != "None" and linux and aarch64
         #   then:
         #     - arm-variant * ${{ arm_variant_type | default("None") }}
