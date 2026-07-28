@@ -4,4 +4,4 @@ pytorch:
 
 gpu_variant:
   - cpu
-  - cuda
+#  - cuda
