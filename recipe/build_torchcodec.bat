@@ -1,7 +1,7 @@
-if not "%cuda_compiler_version%" == "None" (
-    set ENABLE_CUDA=1
-) else (
+if not "%gpu_variant%" != "cuda" (
     set ENABLE_CUDA=0
+) else (
+    set ENABLE_CUDA=1
 )
 
 :: Workaround for https://github.com/conda-forge/conda-forge.github.io/issues/1880
@@ -19,5 +19,5 @@ set "CMAKE_GENERATOR=Ninja"
 set "CMAKE_GENERATOR_PLATFORM="
 set "CMAKE_GENERATOR_TOOLSET="
 
-pip install . --no-deps --no-build-isolation -vv
+%PYTHON% -m pip install . --no-deps --no-build-isolation -vv
 if %ERRORLEVEL% neq 0 exit 1
