@@ -19,7 +19,7 @@ source:
 
 build:
   number: {{ build_num }}
-  skip: true # [ py<310 or ((gpu_variant == "cpu" or aarch64) and (cuda_compiler_version or "12").startswith("12"))]
+  skip: true # [ py<310 or (((gpu_variant == "cpu" and (linux or win)) or aarch64) and (cuda_compiler_version or "12").startswith("12"))]
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
 
@@ -29,7 +29,8 @@ outputs:
     build: 
       number: {{ build_num }}
       missing_dso_whitelist:
-        - "$RPATH/libtorchcodec_core8.so"
+        - "$RPATH/libtorchcodec_core8.so" # [linux]
+        - "$RPATH/libtorchcodec_core8.dll" # [win]
     script: build_torchcodec.sh # [unix]
     script: build_torchcodec.bat # [win]
     requirements:
