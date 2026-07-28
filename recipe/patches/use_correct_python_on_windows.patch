@@ -9,16 +9,17 @@ Added a workaround for conda-forge pkg-config issue.
  1 file changed, 3 insertions(+)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0f2d0de2d..64af5c24b 100644
+index 18dc98c0..ff7e2855 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -1,6 +1,9 @@
- cmake_minimum_required(VERSION 3.18)
- project(TorchCodec)
+@@ -8,6 +8,10 @@ else()
+     set(LINUX FALSE)
+ endif()
  
 +set(PYTHON_EXECUTABLE $ENV{PYTHON})
 +set(Python_EXECUTABLE $ENV{PYTHON})
 +set(Python3_EXECUTABLE $ENV{PYTHON})
++
  add_subdirectory(src/torchcodec/_core)
  
  
