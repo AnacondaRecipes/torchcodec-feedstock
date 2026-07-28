@@ -32,8 +32,9 @@ outputs:
     build: 
       number: {{ build_num }}
       missing_dso_whitelist:
-        - "$RPATH/libtorchcodec_core8.so" # [linux]
-        - "$RPATH/libtorchcodec_core8.dll" # [win]
+        - "$RPATH/libtorchcodec_core8.so"    # [linux]
+        - "$RPATH/libtorchcodec_core8.dll"   # [win]
+        - "$RPATH/libtorchcodec_core8.dylib" # [osx]
     script: build_torchcodec.sh # [unix]
     script: build_torchcodec.bat # [win]
     requirements:
