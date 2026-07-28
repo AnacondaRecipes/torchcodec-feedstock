@@ -1,4 +1,4 @@
-if not "%gpu_variant%" != "cuda" (
+if not "%gpu_variant%" == "cuda" (
     set ENABLE_CUDA=0
 ) else (
     set ENABLE_CUDA=1
