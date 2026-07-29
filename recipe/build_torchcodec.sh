@@ -9,7 +9,6 @@ else
    export CUDACXX="${BUILD_PREFIX}/bin/nvcc"
 fi
 
-
 # Workaround for https://github.com/conda-forge/conda-forge.github.io/issues/1880
 export PKG_CONFIG=$BUILD_PREFIX/bin/pkgconf
 

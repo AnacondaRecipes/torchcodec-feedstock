@@ -41,7 +41,7 @@ outputs:
         - {{ compiler('cuda') }} # [gpu_variant=="cuda"]
         - cmake
         - pkg-config
-        - ninja
+        - ninja-base
       host:
         - python
         - pip
@@ -72,8 +72,6 @@ outputs:
             
       run:
         - python
-        # We temporary relatex the pytorch dependency on to be compatible with torchvision,
-        # see https://github.com/conda-forge/torchcodec-feedstock/pull/69#issuecomment-4751807811
         - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
         - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
         - __cuda                         # [gpu_variant=="cuda"]
