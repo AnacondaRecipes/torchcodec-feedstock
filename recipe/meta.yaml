@@ -49,7 +49,6 @@ outputs:
         - cmake
         - pkg-config
         - ninja
-
       host:
         - python
         - pip
@@ -122,11 +121,21 @@ outputs:
         - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_skip }}
 
 about:
-  homepage: https://github.com/meta-pytorch/torchcodec
+  home: https://github.com/meta-pytorch/torchcodec
   license: BSD-3-Clause
   license_file:
     - LICENSE
+  license_family: BSD
   summary: TorchCodec is a Python library for decoding videos into PyTorch tensors, on CPU and CUDA GPU.
+  description: |
+    TorchCodec is a Python library for decoding video and audio data into PyTorch
+    tensors, on CPU and CUDA GPU. It also supports video and audio encoding on
+    CPU! It aims to be fast, easy to use, and well integrated into the PyTorch
+    ecosystem. If you want to use PyTorch to train ML models on videos and audio,
+    or run inference, TorchCodec is how you turn these into data.
+  dev_url: https://github.com/meta-pytorch/torchcodec
+  doc_url: https://meta-pytorch.org/torchcodec/stable/index.html
+
 
 extra:
   recipe-maintainers:
