@@ -2,10 +2,6 @@
 {% set version = "0.14.0" %}
 {% set build_num = 0 %}
 
-  # torch_proc_type: ${{ "cuda" ~ cuda_compiler_version | version_to_buildstring if cuda_compiler_version != "None" else "cpu" }}
-  # # ensure arm_variant_type gets detected as a used variable
-  # touch_arm_variant_type: ${{ arm_variant_type | default("None") }}
-
 package:
   name: torchcodec-split
   version: {{ version }}
@@ -23,8 +19,8 @@ build:
   # skip if CPU and CUDA 12 (only want one CPU variant)
   # osx builds are missing torchvision 0.26 builds that work with pytorch2.11. Skip osx builds until this is fixed.
   skip: true # [ py<310 or (((gpu_variant == "cpu" and (linux or win)) or aarch64) and (cuda_compiler_version or "12").startswith("12")) or osx]
-  string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
-  string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
+  string: cpu_torch{{ pytorch | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
+  string: cuda{{ cuda_compiler_version | replace('.', '') }}_torch{{ pytorch | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
 
 outputs:
   - name: torchcodec
@@ -43,9 +39,6 @@ outputs:
         - {{ compiler('c') }}
         - {{ stdlib("c") }}
         - {{ compiler('cuda') }} # [gpu_variant=="cuda"]
-        # - if: cuda_compiler_version != "None" and linux and aarch64
-        #   then:
-        #     - arm-variant * ${{ arm_variant_type | default("None") }}
         - cmake
         - pkg-config
         - ninja
@@ -58,15 +51,6 @@ outputs:
         - libtorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
         - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
         - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
-        # We temporary relatex the pytorch dependency on to be compatible with torchvision,
-        # see https://github.com/conda-forge/torchcodec-feedstock/pull/69#issuecomment-4751807811
-        # - if: cuda_compiler_version == "12.9" and win
-        #   then:
-        #     - libtorch * [build=cuda12*]
-        #     - pytorch * [build=cuda12*]
-        #   else:
-        #     - libtorch * [build=${{ torch_proc_type }}*]
-        #     - pytorch * [build=${{ torch_proc_type }}*]
         - pybind11
         # These are dev packages (headers etc.) for transitive dependencies of libtorch
         - cuda-version =={{ cuda_compiler_version }} # [gpu_variant == "cuda"]
@@ -82,7 +66,6 @@ outputs:
         - libcurand-dev       # [gpu_variant == "cuda"]
         - libcusolver-dev     # [gpu_variant == "cuda"]
         - libcusparse-dev     # [gpu_variant == "cuda"]
-        #- libmagma-devel      # [gpu_variant == "cuda"]
         - nvtx-c              # [gpu_variant == "cuda"]
         # These are actual torchcodec deps
         - libnpp-dev          # [gpu_variant == "cuda"]

@@ -3,10 +3,10 @@ set -ex
 
 if [[ ${gpu_variant} != "cuda" ]]; then
    export ENABLE_CUDA=0
-   export CUDA_TOOLKIT_ROOT_DIR="${PREFIX}"
-   export CUDACXX="${BUILD_PREFIX}/bin/nvcc"
 else
    export ENABLE_CUDA=1
+   export CUDA_TOOLKIT_ROOT_DIR="${PREFIX}"
+   export CUDACXX="${BUILD_PREFIX}/bin/nvcc"
 fi
 
 

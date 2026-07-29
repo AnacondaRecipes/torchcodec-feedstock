@@ -1,7 +1,7 @@
-pytorch:
-  - 2.11
-  #- 2.12
-
 gpu_variant:
   - cpu
 #  - cuda
+
+pytorch:
+  - 2.11
+#  - 2.12
