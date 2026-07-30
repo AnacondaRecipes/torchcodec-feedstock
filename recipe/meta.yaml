@@ -81,8 +81,9 @@ outputs:
     {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
     # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
     # codecs. However, that is not available on the main channel, so disable the tests.
+    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestEncoder" %}
     {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestVideoEncoder" %}
-    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestVideoDecoder" %}
+    {% set tests_to_skip = tests_to_skip + " --deselect test/smoke_test.py::TestVideoDecoder" %}
 
     test:
       source_files:
