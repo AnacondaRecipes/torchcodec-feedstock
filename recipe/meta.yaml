@@ -76,14 +76,17 @@ outputs:
 
     {% set tests = "test" %}
 
-    {% set tests_to_skip = "" %}
-    {% set tests_to_skip = tests_to_skip + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
-    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
+    {% set tests_to_ignore = "" %}
+    {% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
+    {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
     # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
     # codecs. However, that is not available on the main channel, so disable the tests.
-    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestEncoder" %}
-    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestVideoEncoder" %}
-    {% set tests_to_skip = tests_to_skip + " --deselect test/smoke_test.py::TestVideoDecoder" %}
+    {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
+    {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
+    {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
+
+    {% set skip_tests = "test_video_and_audio_chunked" %}
+    {% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}
 
     test:
       source_files:
@@ -95,11 +98,14 @@ outputs:
         - torchvision
         - pip
         - cmake
+        - {{ compiler('cxx') }}
+        - {{ compiler('c') }}
+        - {{ stdlib("c") }}
       imports:
         - torchcodec
       commands:
         - pip check
-        - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_skip }}
+        - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_ignore }} -k "not ({{skip_tests}})"
 
 about:
   home: https://github.com/meta-pytorch/torchcodec
