@@ -47,12 +47,13 @@ outputs:
         - python
         - pip
         - setuptools
-        - ffmpeg
+        - ffmpeg {{ ffmpeg }}
         - libtorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
         - libtorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
         - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
         - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
         - pybind11
+        - pybind11-abi
         # These are dev packages (headers etc.) for transitive dependencies of libtorch
         - cuda-version =={{ cuda_compiler_version }} # [gpu_variant == "cuda"]
         - cuda-driver-dev     # [gpu_variant == "cuda" and linux]
