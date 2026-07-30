@@ -18,7 +18,7 @@ build:
   # Skip if linux-aarch and CUDA 12
   # skip if CPU and CUDA 12 (only want one CPU variant)
   # osx builds are missing torchvision 0.26 builds that work with pytorch2.11. Skip osx builds until this is fixed.
-  skip: true # [ py<310 or (((gpu_variant == "cpu" and (linux or win)) or aarch64) and (cuda_compiler_version or "12").startswith("12")) or osx]
+  skip: true # [ py<310 or (osx and (gpu_variant == "cuda" or (cuda_compiler_version or "12").startswith("12"))) or (((gpu_variant == "cpu" and (linux or win)) or aarch64) and (cuda_compiler_version or "12").startswith("12"))]
   string: cpu_torch{{ pytorch | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_torch{{ pytorch | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
 
