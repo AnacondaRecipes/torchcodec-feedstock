@@ -74,16 +74,15 @@ outputs:
         - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
         - __cuda                         # [gpu_variant=="cuda"]
 
-    {% set tests = "test/test_version.py" %}
-    {% set tests = tests + " test/test_frame_dataclasses.py" %}
-    {% set tests = tests + " test/test_metadata.py" %}
-    {% set tests = tests + " test/test_decoders.py" %}
     {% set tests = "test" %}
 
     {% set tests_to_skip = "" %}
-    {% set tests_to_skip =  tests_to_skip + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
-    {% set tests_to_skip =  tests_to_skip + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
-    {% set tests_to_skip =  tests_to_skip + " --deselect test/test_encoders.py::TestVideoEncoder::test_video_encoder_against_ffmpeg_cli" %} # [win]
+    {% set tests_to_skip = tests_to_skip + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
+    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
+    # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
+    # codecs. However, that is not available on the main channel, so disable the tests.
+    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestVideoEncoder" %}
+    {% set tests_to_skip = tests_to_skip + " --deselect test/test_encoders.py::TestVideoDecoder" %}
 
     test:
       source_files:
@@ -94,6 +93,7 @@ outputs:
         - pillow
         - torchvision
         - pip
+        - cmake
       imports:
         - torchcodec
       commands:
