@@ -16,8 +16,8 @@ source:
 build:
   number: {{ build_num }}
   skip: true # [py<310 or gpu_variant == "cuda"]
-  string: cpu_torch{{ pytorch | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
-  string: cuda{{ cuda_compiler_version | replace('.', '') }}_torch{{ pytorch | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
+  string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
+  string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
 
 outputs:
   - name: torchcodec
@@ -80,7 +80,7 @@ outputs:
     {% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
     {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
     # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
-    # codecs. However, that is not available on the main channel, so disable the tests.
+    # codecs. However, that is not available on the main channel, so disable the encoder/decoder tests.
     {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
     {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
     {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
