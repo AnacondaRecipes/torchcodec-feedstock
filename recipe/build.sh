@@ -1,9 +1,12 @@
+#!/bin/sh
 set -ex
 
-if [[ ${cuda_compiler_version} != "None" ]]; then
-   export ENABLE_CUDA=1
-else
+if [[ ${gpu_variant} != "cuda" ]]; then
    export ENABLE_CUDA=0
+else
+   export ENABLE_CUDA=1
+   export CUDA_TOOLKIT_ROOT_DIR="${PREFIX}"
+   export CUDACXX="${BUILD_PREFIX}/bin/nvcc"
 fi
 
 # Workaround for https://github.com/conda-forge/conda-forge.github.io/issues/1880
@@ -21,7 +24,7 @@ export TORCHCODEC_DISABLE_HOMEBREW_RPATH=ON
 # Use Ninja generator for consistency with Windows
 export CMAKE_GENERATOR=Ninja
 
-pip install . --no-deps --no-build-isolation -vv
+$PYTHON -m pip install . --no-deps --no-build-isolation -vv
 
 # Remove spurious files created by gtk post-link activation script,
 # that should not be included as part of the installed files

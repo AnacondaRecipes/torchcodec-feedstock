@@ -1,0 +1,123 @@
+{% set name = "torchcodec" %}
+{% set version = "0.14.0" %}
+{% set build_num = 0 %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  - url: https://github.com/meta-pytorch/torchcodec/archive/refs/tags/v{{ version }}.tar.gz
+    sha256: 340d85964f4865b16831b14923e3608866afbe6d5253b46a7c496bcdfb70bffa
+    patches:
+      - patches/fix_third_party_interface_library_loading.patch
+      - patches/use_correct_python_on_windows.patch # [win]
+
+build:
+  number: {{ build_num }}
+  skip: true # [py<310 or gpu_variant == "cuda"]
+  string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
+  string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
+  missing_dso_whitelist:
+    - "$RPATH/libtorchcodec_core8.so"    # [linux]
+    - "$RPATH/libtorchcodec_core8.dll"   # [win]
+    - "$RPATH/libtorchcodec_core8.dylib" # [osx]
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - {{ compiler('c') }}
+    - {{ stdlib("c") }}
+    - {{ compiler('cuda') }} # [gpu_variant=="cuda"]
+    - cmake
+    - pkg-config
+    - ninja-base
+  host:
+    - python
+    - pip
+    - setuptools
+    - ffmpeg {{ ffmpeg }}
+    - libtorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
+    - libtorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
+    - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
+    - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
+    - pybind11
+    - pybind11-abi
+    # These are dev packages (headers etc.) for transitive dependencies of libtorch
+    - cuda-version =={{ cuda_compiler_version }} # [gpu_variant == "cuda"]
+    - cuda-driver-dev     # [gpu_variant == "cuda" and linux]
+    - nccl                # [gpu_variant == "cuda" and linux]
+    - cuda-cudart-dev     # [gpu_variant == "cuda"]
+    - cuda-nvrtc-dev      # [gpu_variant == "cuda"]
+    - cuda-nvtx-dev       # [gpu_variant == "cuda"]
+    - cuda-nvml-dev       # [gpu_variant == "cuda"]
+    - cuda-profiler-api   # [gpu_variant == "cuda"]
+    - libcublas-dev       # [gpu_variant == "cuda"]
+    - libcufft-dev        # [gpu_variant == "cuda"]
+    - libcurand-dev       # [gpu_variant == "cuda"]
+    - libcusolver-dev     # [gpu_variant == "cuda"]
+    - libcusparse-dev     # [gpu_variant == "cuda"]
+    - nvtx-c              # [gpu_variant == "cuda"]
+    # These are actual torchcodec deps
+    - libnpp-dev          # [gpu_variant == "cuda"]
+        
+  run:
+    - python
+    - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
+    - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
+    - __cuda                         # [gpu_variant=="cuda"]
+
+{% set tests = "test" %}
+
+{% set tests_to_ignore = "" %}
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
+# Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
+# codecs. However, that is not available on the main channel, so disable the encoder/decoder tests.
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
+
+{% set skip_tests = "test_video_and_audio_chunked" %}
+{% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}
+
+test:
+  source_files:
+    - test/
+  requires:
+    - pytest
+    - numpy
+    - pillow
+    - torchvision
+    - pip
+    - cmake
+    - {{ compiler('cxx') }}
+    - {{ compiler('c') }}
+    - {{ stdlib("c") }}
+  imports:
+    - torchcodec
+  commands:
+    - pip check
+    - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_ignore }} -k "not ({{skip_tests}})"
+
+about:
+  home: https://github.com/meta-pytorch/torchcodec
+  license: BSD-3-Clause
+  license_file:
+    - LICENSE
+  license_family: BSD
+  summary: TorchCodec is a Python library for decoding videos into PyTorch tensors, on CPU and CUDA GPU.
+  description: |
+    TorchCodec is a Python library for decoding video and audio data into PyTorch
+    tensors, on CPU and CUDA GPU. It also supports video and audio encoding on
+    CPU! It aims to be fast, easy to use, and well integrated into the PyTorch
+    ecosystem. If you want to use PyTorch to train ML models on videos and audio,
+    or run inference, TorchCodec is how you turn these into data.
+  dev_url: https://github.com/meta-pytorch/torchcodec
+  doc_url: https://meta-pytorch.org/torchcodec/stable/index.html
+
+
+extra:
+  recipe-maintainers:
+    - traversaro
+    - Dan-Flores
+  feedstock-name: torchcodec
