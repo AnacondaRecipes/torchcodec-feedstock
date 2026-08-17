@@ -11,11 +11,12 @@ source:
     sha256: 340d85964f4865b16831b14923e3608866afbe6d5253b46a7c496bcdfb70bffa
     patches:
       - patches/fix_third_party_interface_library_loading.patch
+      - patches/0001-use-cmake-args.patch
       - patches/use_correct_python_on_windows.patch # [win]
 
 build:
   number: {{ build_num }}
-  skip: true # [py<310 or gpu_variant == "cuda"]
+  skip: true # [py<310]
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
   missing_dso_whitelist:
