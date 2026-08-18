@@ -1,11 +1,11 @@
 gpu_variant:
-#  - cpu
-#  - cuda  # [(win and x86_64) or (linux and x86_64)]
+  - cpu
+  - cuda  # [(win and x86_64) or (linux and x86_64)]
   - cuda  # [(win and x86_64) or linux]
 
 cuda_compiler_version:
-#  - None
-#  - 12.9 # [(win and x86_64) or (linux and x86_64)]
+  - None
+  - 12.9 # [(win and x86_64) or (linux and x86_64)]
   - 13.0 # [(win and x86_64) or linux]
 
 pytorch:
