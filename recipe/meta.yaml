@@ -77,9 +77,14 @@ requirements:
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
+# the video decoder tests require a CUDA enabled version of ffmpeg, which we do not (yet?)
+# have on the main channel
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestVideoDecoder" if gpu_variant=="cuda" else "" %}
 
 {% set skip_tests = "test_video_and_audio_chunked" %}
 {% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}
+# cuda+ffmpeg tests require a cuda-enabled ffpmeg, which we don't have on main
+{% set skip_tests = skip_tests + " or (cuda and ffmpeg)" %}
 
 test:
   source_files:
@@ -99,7 +104,6 @@ test:
   commands:
     - pip check
     - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_ignore }} -k "not ({{skip_tests}})"
-
 about:
   home: https://github.com/meta-pytorch/torchcodec
   license: BSD-3-Clause
