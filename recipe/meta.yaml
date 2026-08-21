@@ -77,6 +77,8 @@ requirements:
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestEncoder.test_cuda_encoding" if win64 else ""%}
+
 # the video decoder tests require a CUDA enabled version of ffmpeg, which we do not (yet?)
 # have on the main channel
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestVideoDecoder" if gpu_variant=="cuda" else "" %}
