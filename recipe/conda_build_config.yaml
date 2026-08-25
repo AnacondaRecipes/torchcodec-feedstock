@@ -11,7 +11,7 @@ cuda_compiler_version: # [linux or win]
 pytorch:
   - 2.11
 
-zip_keys:
-  -
-    - gpu_variant
-    - cuda_compiler_version
+zip_keys: # [linux or win]
+  -       # [linux or win]
+    - gpu_variant # [linux or win]
+    - cuda_compiler_version # [linux or win]
