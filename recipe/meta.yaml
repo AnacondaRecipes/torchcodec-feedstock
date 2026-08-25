@@ -70,7 +70,9 @@ requirements:
 {% set tests = "test" %}
 
 {% set tests_to_ignore = "" %}
-{% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
+# The third party tests perform builds using cmake. The cmake script that finds CUDA is old and not
+# easily compatible with conda installations.
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
 # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
 # codecs. However, that is not available on the main channel, so disable the encoder/decoder tests.
@@ -99,34 +101,10 @@ test:
     - pillow
     - torchvision
     - pip
-    - cmake
-    - {{ compiler('cxx') }}
-    - {{ compiler('c') }}
-    - {{ stdlib("c") }}
-    #- cuda-toolkit           # [gpu_variant=="cuda"]
-    - {{ compiler('cuda') }} # [gpu_variant=="cuda"]
-    - cuda-driver-dev     # [gpu_variant == "cuda" and linux]
-    - nccl                # [gpu_variant == "cuda" and linux]
-    - cuda-cudart-dev     # [gpu_variant == "cuda"]
-    - cuda-nvrtc-dev      # [gpu_variant == "cuda"]
-    - cuda-nvtx-dev       # [gpu_variant == "cuda"]
-    - cuda-nvml-dev       # [gpu_variant == "cuda"]
-    - cuda-profiler-api   # [gpu_variant == "cuda"]
-    - libcublas-dev       # [gpu_variant == "cuda"]
-    - libcufft-dev        # [gpu_variant == "cuda"]
-    - libcurand-dev       # [gpu_variant == "cuda"]
-    - libcusolver-dev     # [gpu_variant == "cuda"]
-    - libcusparse-dev     # [gpu_variant == "cuda"]
-    - nvtx-c              # [gpu_variant == "cuda"]
-    # These are actual torchcodec deps
-    - libnpp-dev          # [gpu_variant == "cuda"]
-    - cuda-version =={{ cuda_compiler_version }}
   imports:
     - torchcodec
   commands:
     - pip check
-    - export CUDA_TOOLKIT_ROOT_DIR="${PREFIX}"  # [linux and gpu_variant=="cuda"]
-    - export CUDACXX="${BUILD_PREFIX}/bin/nvcc" # [linux and gpu_variant=="cuda"]
     - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_ignore }} -k "not ({{skip_tests}})"
 
 about:
