@@ -16,7 +16,7 @@ source:
 
 build:
   number: {{ build_num }}
-  skip: true # [py<310]
+  skip: true # [py<310 or osx]
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
   missing_dso_whitelist:
@@ -103,11 +103,32 @@ test:
     - {{ compiler('cxx') }}
     - {{ compiler('c') }}
     - {{ stdlib("c") }}
+    #- cuda-toolkit           # [gpu_variant=="cuda"]
+    - {{ compiler('cuda') }} # [gpu_variant=="cuda"]
+    - cuda-driver-dev     # [gpu_variant == "cuda" and linux]
+    - nccl                # [gpu_variant == "cuda" and linux]
+    - cuda-cudart-dev     # [gpu_variant == "cuda"]
+    - cuda-nvrtc-dev      # [gpu_variant == "cuda"]
+    - cuda-nvtx-dev       # [gpu_variant == "cuda"]
+    - cuda-nvml-dev       # [gpu_variant == "cuda"]
+    - cuda-profiler-api   # [gpu_variant == "cuda"]
+    - libcublas-dev       # [gpu_variant == "cuda"]
+    - libcufft-dev        # [gpu_variant == "cuda"]
+    - libcurand-dev       # [gpu_variant == "cuda"]
+    - libcusolver-dev     # [gpu_variant == "cuda"]
+    - libcusparse-dev     # [gpu_variant == "cuda"]
+    - nvtx-c              # [gpu_variant == "cuda"]
+    # These are actual torchcodec deps
+    - libnpp-dev          # [gpu_variant == "cuda"]
+    - cuda-version =={{ cuda_compiler_version }}
   imports:
     - torchcodec
   commands:
     - pip check
+    - export CUDA_TOOLKIT_ROOT_DIR="${PREFIX}"  # [linux and gpu_variant=="cuda"]
+    - export CUDACXX="${BUILD_PREFIX}/bin/nvcc" # [linux and gpu_variant=="cuda"]
     - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_ignore }} -k "not ({{skip_tests}})"
+
 about:
   home: https://github.com/meta-pytorch/torchcodec
   license: BSD-3-Clause
