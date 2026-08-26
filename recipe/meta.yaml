@@ -96,6 +96,9 @@ requirements:
 # cuda+ffmpeg tests require a cuda-enabled ffpmeg, which we don't have on main
 {% set skip_tests = skip_tests + " or (cuda and ffmpeg)" %}
 
+# We can't run CUDA tests on aarch64 due to platform limitations. The GPU arch is sm_75, but pytorch only supports >sm_80
+{% set skip_tests = skip_tests + (" or cuda" if aarch64 else "") %}
+
 test:
   source_files:
     - test/
