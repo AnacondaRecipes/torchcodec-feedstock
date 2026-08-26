@@ -9,6 +9,21 @@ else
    export CUDACXX="${BUILD_PREFIX}/bin/nvcc"
 fi
 
+if [[ ${gpu_variant} != "cuda" ]]; then
+   # CUDA arch list from pytorch 2.11
+   if [[ "$target_platform" == "linux-aarch64" && ${cuda_compiler_version} == 13.* ]]; then
+   export TORCH_CUDA_ARCH_LIST="8.0;9.0;10.0;11.0;12.0;12.1+PTX"
+   elif [[ ${cuda_compiler_version} == 12.* ]]; then
+   export TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;9.0;10.0;12.0+PTX"
+   elif [[ ${cuda_compiler_version} == 13.* ]]; then
+   export TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;9.0;10.0;12.0+PTX"
+   else
+   echo "No CUDA architecture list exists for CUDA v${cuda_compiler_version}"
+   echo "in build.sh. Use https://en.wikipedia.org/wiki/CUDA#GPUs_supported to make one."
+   exit 1
+   fi
+fi
+
 # Workaround for https://github.com/conda-forge/conda-forge.github.io/issues/1880
 export PKG_CONFIG=$BUILD_PREFIX/bin/pkgconf
 
