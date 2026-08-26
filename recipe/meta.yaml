@@ -2,6 +2,10 @@
 {% set version = "0.14.0" %}
 {% set build_num = 1 %}
 
+{% if gpu_variant == "cuda" %}
+{% set build_num = 100 + build_num %}
+{% endif %}
+
 package:
   name: {{ name }}
   version: {{ version }}
@@ -85,7 +89,7 @@ requirements:
 
 # the video decoder tests require a CUDA enabled version of ffmpeg, which we do not (yet?)
 # have on the main channel
-{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestVideoDecoder" if gpu_variant=="cuda" else "" %}
+{% set tests_to_ignore = tests_to_ignore + (" --deselect test/test_decoders.py::TestVideoDecoder" if gpu_variant=="cuda" else "") %}
 
 {% set skip_tests = "test_video_and_audio_chunked" %}
 {% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}
