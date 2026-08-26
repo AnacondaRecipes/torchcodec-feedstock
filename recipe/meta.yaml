@@ -20,7 +20,7 @@ source:
 
 build:
   number: {{ build_num }}
-  skip: true # [py<310 or osx]
+  skip: true # [py<310]
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
   missing_dso_whitelist:
@@ -89,7 +89,7 @@ requirements:
 
 # the video decoder tests require a CUDA enabled version of ffmpeg, which we do not (yet?)
 # have on the main channel
-{% set tests_to_ignore = tests_to_ignore + (" --deselect test/test_decoders.py::TestVideoDecoder" if gpu_variant=="cuda" else "") %}
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestVideoDecoder" %} # [gpu_variant=="cuda"]
 
 {% set skip_tests = "test_video_and_audio_chunked" %}
 {% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}
@@ -97,7 +97,7 @@ requirements:
 {% set skip_tests = skip_tests + " or (cuda and ffmpeg)" %}
 
 # We can't run CUDA tests on aarch64 due to platform limitations. The GPU arch is sm_75, but pytorch only supports >sm_80
-{% set skip_tests = skip_tests + (" or cuda" if aarch64 else "") %}
+{% set skip_tests = skip_tests + " or cuda" %} # [aarch64]
 
 test:
   source_files:
@@ -129,7 +129,6 @@ about:
     or run inference, TorchCodec is how you turn these into data.
   dev_url: https://github.com/meta-pytorch/torchcodec
   doc_url: https://meta-pytorch.org/torchcodec/stable/index.html
-
 
 extra:
   recipe-maintainers:
