@@ -1,0 +1,25 @@
+diff --git a/setup.py b/setup.py
+index 70c647c2..c4c41a5c 100644
+--- a/setup.py
++++ b/setup.py
+@@ -45,6 +45,7 @@ import os
+ import subprocess
+ import sys
+ from pathlib import Path
++import shlex
+ 
+ import torch
+ from setuptools import Extension, setup
+@@ -130,6 +131,12 @@ class CMakeBuild(build_ext):
+             f"-DTORCHCODEC_DISABLE_HOMEBREW_RPATH={torchcodec_disable_homebrew_rpath}",
+         ]
+ 
++        # Consume CMAKE_ARGS from environment (e.g. set by conda compiler activation)
++        env_cmake_args = os.environ.get("CMAKE_ARGS", "")
++        if env_cmake_args:
++            cmake_args = shlex.split(env_cmake_args) + cmake_args
++
++
+         if sys.platform == "win32":
+             cmake_args.append("-G Ninja")
+             if cudacxx := os.environ.get("CUDACXX"):

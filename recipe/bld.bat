@@ -2,8 +2,8 @@ if not "%gpu_variant%" == "cuda" (
     set ENABLE_CUDA=0
 ) else (
     set ENABLE_CUDA=1
-    set CUDA_TOOLKIT_ROOT_DIR="%PREFIX%"
-    set CUDACXX="%BUILD_PREFIX%\bin\nvcc"
+    set "CUDA_TOOLKIT_ROOT_DIR=%PREFIX%"
+    set "CUDACXX=%BUILD_PREFIX%\Library\bin\nvcc.exe"
 )
 
 :: Workaround for https://github.com/conda-forge/conda-forge.github.io/issues/1880

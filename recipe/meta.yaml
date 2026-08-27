@@ -1,6 +1,10 @@
 {% set name = "torchcodec" %}
 {% set version = "0.14.0" %}
-{% set build_num = 0 %}
+{% set build_num = 1 %}
+
+{% if gpu_variant == "cuda" %}
+{% set build_num = 100 + build_num %}
+{% endif %}
 
 package:
   name: {{ name }}
@@ -11,11 +15,12 @@ source:
     sha256: 340d85964f4865b16831b14923e3608866afbe6d5253b46a7c496bcdfb70bffa
     patches:
       - patches/fix_third_party_interface_library_loading.patch
+      - patches/0001-use-cmake-args.patch
       - patches/use_correct_python_on_windows.patch # [win]
 
 build:
   number: {{ build_num }}
-  skip: true # [py<310 or gpu_variant == "cuda"]
+  skip: true # [py<310]
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
   missing_dso_whitelist:
@@ -69,7 +74,9 @@ requirements:
 {% set tests = "test" %}
 
 {% set tests_to_ignore = "" %}
-{% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}                       # [win or osx]
+# The third party tests perform builds using cmake. The cmake script that finds CUDA is old and not
+# easily compatible with conda installations.
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
 # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
 # codecs. However, that is not available on the main channel, so disable the encoder/decoder tests.
@@ -77,8 +84,20 @@ requirements:
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
 
+# requires CUDA enabled ffmpeg, which we don't currently have on main
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestEncoder::test_cuda_encoding" %}
+
+# the video decoder tests require a CUDA enabled version of ffmpeg, which we do not (yet?)
+# have on the main channel
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestVideoDecoder" %} # [gpu_variant=="cuda"]
+
 {% set skip_tests = "test_video_and_audio_chunked" %}
 {% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}
+# cuda+ffmpeg tests require a cuda-enabled ffpmeg, which we don't have on main
+{% set skip_tests = skip_tests + " or (cuda and ffmpeg)" %}
+
+# We can't run CUDA tests on aarch64 due to platform limitations. The GPU arch is sm_75, but pytorch only supports >sm_80
+{% set skip_tests = skip_tests + " or cuda" %} # [aarch64]
 
 test:
   source_files:
@@ -89,10 +108,6 @@ test:
     - pillow
     - torchvision
     - pip
-    - cmake
-    - {{ compiler('cxx') }}
-    - {{ compiler('c') }}
-    - {{ stdlib("c") }}
   imports:
     - torchcodec
   commands:
@@ -114,7 +129,6 @@ about:
     or run inference, TorchCodec is how you turn these into data.
   dev_url: https://github.com/meta-pytorch/torchcodec
   doc_url: https://meta-pytorch.org/torchcodec/stable/index.html
-
 
 extra:
   recipe-maintainers:
