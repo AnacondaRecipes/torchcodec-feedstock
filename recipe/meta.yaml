@@ -1,6 +1,6 @@
 {% set name = "torchcodec" %}
 {% set version = "0.14.0" %}
-{% set build_num = 1 %}
+{% set build_num = 2 %}
 
 {% if gpu_variant == "cuda" %}
 {% set build_num = 100 + build_num %}

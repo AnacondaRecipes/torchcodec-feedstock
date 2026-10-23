@@ -9,7 +9,7 @@ cuda_compiler_version: # [linux or win or osx]
   - 13.0 # [(win and x86_64) or linux]
 
 pytorch:
-  - 2.11
+  - 2.13
 
 zip_keys: # [linux or win]
   -       # [linux or win]
