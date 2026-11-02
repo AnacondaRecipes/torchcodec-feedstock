@@ -15,9 +15,7 @@ source:
     sha256: 095b45702643875516d79c20005bdd05fb998368b4e4cd63e97e01e133c8a34d
     patches:
       - patches/fix_third_party_interface_library_loading.patch
-      # Upstream downloads a prebuilt libavif from S3 and compiles a vendored giflib;
-      # link the channel's libavif and giflib instead.
-      - patches/use_system_libavif.patch
+      # Upstream compiles a vendored giflib; link the channel's giflib instead.
       - patches/use_system_giflib.patch
       - patches/use_correct_python_on_windows.patch # [win]
 
@@ -51,13 +49,13 @@ requirements:
     - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
     - pybind11
     - pybind11-abi
-    # Image decoders (JPEG, PNG, WebP, AVIF, GIF). HEIC is disabled in the build
-    # scripts because libheif is not available on the channel.
+    # Image decoders (JPEG, PNG, WebP, GIF). AVIF and HEIC are disabled in the
+    # build scripts: the channel's libavif 1.4.2 has no AV1 codec built in, and
+    # libheif is not available.
     - libjpeg-turbo {{ libjpeg_turbo }}
     - libpng {{ libpng }}
     - zlib {{ zlib }}
     - libwebp-base {{ libwebp_base }}
-    - libavif {{ libavif }}
     - giflib {{ giflib }}
     # These are dev packages (headers etc.) for transitive dependencies of libtorch
     - cuda-version =={{ cuda_compiler_version }} # [gpu_variant == "cuda"]

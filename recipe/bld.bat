@@ -27,6 +27,9 @@ set "CMAKE_GENERATOR_TOOLSET="
 
 :: libheif is not available on the channel: build without HEIC (decode_heic raises at runtime).
 set TORCHCODEC_BUILD_HEIC=0
+:: The channel's libavif 1.4.2 has no AV1 codec built in, and upstream would download
+:: a prebuilt libavif from S3: build without AVIF (decode_avif raises at runtime).
+set TORCHCODEC_BUILD_AVIF=0
 
 :: use_system_giflib.patch links the channel's giflib, so drop the vendored copy
 :: rather than shipping its sources inside site-packages.
