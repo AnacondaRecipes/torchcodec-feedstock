@@ -1,6 +1,6 @@
 {% set name = "torchcodec" %}
-{% set version = "0.14.0" %}
-{% set build_num = 2 %}
+{% set version = "0.17.0" %}
+{% set build_num = 0 %}
 
 {% if gpu_variant == "cuda" %}
 {% set build_num = 100 + build_num %}
@@ -12,15 +12,19 @@ package:
 
 source:
   - url: https://github.com/meta-pytorch/torchcodec/archive/refs/tags/v{{ version }}.tar.gz
-    sha256: 340d85964f4865b16831b14923e3608866afbe6d5253b46a7c496bcdfb70bffa
+    sha256: 095b45702643875516d79c20005bdd05fb998368b4e4cd63e97e01e133c8a34d
     patches:
       - patches/fix_third_party_interface_library_loading.patch
-      - patches/0001-use-cmake-args.patch
+      # Upstream downloads a prebuilt libavif from S3 and compiles a vendored giflib;
+      # link the channel's libavif and giflib instead.
+      - patches/use_system_libavif.patch
+      - patches/use_system_giflib.patch
       - patches/use_correct_python_on_windows.patch # [win]
 
 build:
   number: {{ build_num }}
-  skip: true # [py<310]
+  # pytorch 2.15 requires python >=3.11 (no py3.10 builds); torchcodec itself allows >=3.10.
+  skip: true  # [py<311]
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
   missing_dso_whitelist:
@@ -39,7 +43,7 @@ requirements:
   host:
     - python
     - pip
-    - setuptools
+    - scikit-build-core >=0.10
     - ffmpeg {{ ffmpeg }}
     - libtorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
     - libtorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
@@ -47,6 +51,14 @@ requirements:
     - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
     - pybind11
     - pybind11-abi
+    # Image decoders (JPEG, PNG, WebP, AVIF, GIF). HEIC is disabled in the build
+    # scripts because libheif is not available on the channel.
+    - libjpeg-turbo {{ libjpeg_turbo }}
+    - libpng {{ libpng }}
+    - zlib {{ zlib }}
+    - libwebp-base {{ libwebp_base }}
+    - libavif {{ libavif }}
+    - giflib {{ giflib }}
     # These are dev packages (headers etc.) for transitive dependencies of libtorch
     - cuda-version =={{ cuda_compiler_version }} # [gpu_variant == "cuda"]
     - cuda-driver-dev     # [gpu_variant == "cuda" and linux]
@@ -63,8 +75,8 @@ requirements:
     - libcusparse-dev     # [gpu_variant == "cuda"]
     - nvtx-c              # [gpu_variant == "cuda"]
     # These are actual torchcodec deps
-    - libnpp-dev          # [gpu_variant == "cuda"]
-        
+    - libnvjpeg-dev       # [gpu_variant == "cuda"]
+
   run:
     - python
     - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
@@ -77,7 +89,6 @@ requirements:
 # The third party tests perform builds using cmake. The cmake script that finds CUDA is old and not
 # easily compatible with conda installations.
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/third-party-interface/test_third_party_interface.py" %}
-{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestAudioEncoder::test_against_cli" %}                      # [win]
 # Many of the video decoding and encoding tests require a GPL build of ffmpeg to suport x264 and x265
 # codecs. However, that is not available on the main channel, so disable the encoder/decoder tests.
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
