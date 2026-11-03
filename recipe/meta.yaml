@@ -19,6 +19,12 @@ source:
       - patches/use_system_libavif.patch
       - patches/use_system_giflib.patch
       - patches/use_correct_python_on_windows.patch # [win]
+      # Backport of upstream #1803 (fixes #1802): CUDA batch decode corrupts images on the nvJPEG software path.
+      - patches/fix_nvjpeg_software_batch_race.patch
+  # Binary test asset added by upstream #1803, which the text patch above cannot carry.
+  - url: https://raw.githubusercontent.com/meta-pytorch/{{ name }}/70fe2a64dfa4bd9708bb8da4e79f43742c9ae37d/test/resources/gradient_progressive.jpg
+    sha256: e9befb1fae5ed64b03e47590d48ff54e859d4d34413db0b52325bdff1df09b38
+    folder: test/resources
 
 build:
   number: {{ build_num }}
@@ -111,12 +117,6 @@ requirements:
 # the video decoder tests require a CUDA enabled version of ffmpeg, which we do not (yet?)
 # have on the main channel
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestVideoDecoder" %} # [gpu_variant=="cuda"]
-
-# Upstream race in the nvJPEG software path (GPUs without a HW JPEG engine, e.g. our T4 workers):
-# multi-image batches can return a corrupted non-last image. Fails with upstream's own wheel too;
-# passes with CUDA_LAUNCH_BLOCKING=1. https://github.com/meta-pytorch/torchcodec/issues/1802
-{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestImageDecoder::test_cuda_jpeg_batch" %} # [gpu_variant=="cuda"]
-{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestImageDecoder::test_cuda_jpeg_multithreaded" %} # [gpu_variant=="cuda"]
 
 {% set skip_tests = "test_video_and_audio_chunked" %}
 {% set skip_tests = skip_tests + " or test_roundtrip_lossless" %}

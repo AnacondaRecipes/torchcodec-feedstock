@@ -1,0 +1,327 @@
+From c9cc01f6060d74a0dabd7470c099e34cd4fdc08a Mon Sep 17 00:00:00 2001
+From: Nicolas Hug <contact@nicolas-hug.com>
+Date: Tue, 3 Nov 2026 16:47:44 +0000
+Subject: [PATCH] Fix corrupted images in CUDA decode_jpeg batches on the
+ nvJPEG software path (#1803)
+
+Backport of upstream commit 70fe2a64dfa4bd9708bb8da4e79f43742c9ae37d (https://github.com/meta-pytorch/torchcodec/pull/1803, fixes https://github.com/meta-pytorch/torchcodec/issues/1802) to v0.17.0. The new binary test asset test/resources/gradient_progressive.jpg is not in this patch; meta.yaml fetches it from the same upstream commit as a separate source.
+---
+ src/torchcodec/_core/DecodeJpegCuda.cpp | 150 ++++++++++++++++++++++--
+ src/torchcodec/_core/DecodeJpegCuda.h   |  14 ++-
+ test/test_decoders.py                   |  46 +++++++-
+ test/utils.py                           |  10 ++
+ 4 files changed, 205 insertions(+), 15 deletions(-)
+
+diff --git a/src/torchcodec/_core/DecodeJpegCuda.cpp b/src/torchcodec/_core/DecodeJpegCuda.cpp
+index 741087a..9ab049e 100644
+--- a/src/torchcodec/_core/DecodeJpegCuda.cpp
++++ b/src/torchcodec/_core/DecodeJpegCuda.cpp
+@@ -233,13 +233,54 @@ CUDAJpegDecoder::CUDAJpegDecoder(const torch::stable::Device& target_device)
+         status);
+   }
+ 
+-  // Software path state, used by nvjpegDecode() for progressive JPEGs and for
+-  // everything when there's no HW engine.
+-  status = nvjpegJpegStateCreate(nvjpeg_handle_, &nvjpeg_state_sw_);
++  // Software path objects, used for progressive JPEGs and for everything when
++  // there's no HW engine.
++  status =
++      nvjpegDecoderCreate(nvjpeg_handle_, NVJPEG_BACKEND_DEFAULT, &sw_decoder_);
+   STD_TORCH_CHECK(
+       status == NVJPEG_STATUS_SUCCESS,
+-      "Failed to create nvjpeg decode state: ",
++      "Failed to create nvjpeg decoder: ",
+       status);
++
++  status =
++      nvjpegDecoderStateCreate(nvjpeg_handle_, sw_decoder_, &sw_decoder_state_);
++  STD_TORCH_CHECK(
++      status == NVJPEG_STATUS_SUCCESS,
++      "Failed to create nvjpeg decoder state: ",
++      status);
++
++  status = nvjpegDecodeParamsCreate(nvjpeg_handle_, &sw_decode_params_);
++  STD_TORCH_CHECK(
++      status == NVJPEG_STATUS_SUCCESS,
++      "Failed to create nvjpeg decode params: ",
++      status);
++
++  status = nvjpegBufferDeviceCreate(nvjpeg_handle_, NULL, &sw_device_buffer_);
++  STD_TORCH_CHECK(
++      status == NVJPEG_STATUS_SUCCESS,
++      "Failed to create nvjpeg device buffer: ",
++      status);
++
++  status = nvjpegStateAttachDeviceBuffer(sw_decoder_state_, sw_device_buffer_);
++  STD_TORCH_CHECK(
++      status == NVJPEG_STATUS_SUCCESS,
++      "Failed to attach nvjpeg device buffer: ",
++      status);
++
++  for (int i = 0; i < kNumSwPinnedBuffers; ++i) {
++    status =
++        nvjpegBufferPinnedCreate(nvjpeg_handle_, NULL, &sw_pinned_buffers_[i]);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to create nvjpeg pinned buffer: ",
++        status);
++
++    status = nvjpegJpegStreamCreate(nvjpeg_handle_, &sw_jpeg_streams_[i]);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to create jpeg stream: ",
++        status);
++  }
+ }
+ 
+ CUDAJpegDecoder::~CUDAJpegDecoder() {
+@@ -248,7 +289,14 @@ CUDAJpegDecoder::~CUDAJpegDecoder() {
+   // reached during normal process teardown, because we just leak the entire
+   // decoder cache, just like we leak the NVDEC cache to avoid weird CUDA
+   // teardown issues.
+-  nvjpegJpegStateDestroy(nvjpeg_state_sw_);
++  for (int i = 0; i < kNumSwPinnedBuffers; ++i) {
++    nvjpegJpegStreamDestroy(sw_jpeg_streams_[i]);
++    nvjpegBufferPinnedDestroy(sw_pinned_buffers_[i]);
++  }
++  nvjpegJpegStateDestroy(sw_decoder_state_);
++  nvjpegBufferDeviceDestroy(sw_device_buffer_);
++  nvjpegDecodeParamsDestroy(sw_decode_params_);
++  nvjpegDecoderDestroy(sw_decoder_);
+   if (hw_decode_available_) {
+     nvjpegJpegStreamDestroy(nvjpeg_stream_);
+     nvjpegJpegStateDestroy(nvjpeg_state_hw_);
+@@ -454,22 +502,104 @@ void CUDAJpegDecoder::decode_software(
+     ImageReadMode mode,
+     cudaStream_t stream,
+     std::vector<torch::stable::Tensor>& output_tensors) {
++  int buffer_index = 0;
++  bool needs_sync = false;
+   for (size_t idx : indices) {
+     auto [output_tensor, nvjpeg_image, output_format] =
+         allocate_output(encoded_images[idx], mode);
++
+     // Decode each image straight to its own native format (see
+     // output_format_for_image), so grayscale sources stay single-channel.
+-    nvjpegStatus_t status = nvjpegDecode(
++    nvjpegStatus_t status =
++        nvjpegDecodeParamsSetOutputFormat(sw_decode_params_, output_format);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to set nvjpeg output format: ",
++        status);
++
++    status = nvjpegJpegStreamParse(
+         nvjpeg_handle_,
+-        nvjpeg_state_sw_,
+         encoded_images[idx].const_data_ptr<uint8_t>(),
+         encoded_images[idx].numel(),
+-        output_format,
+-        &nvjpeg_image,
++        /*save_metadata=*/0,
++        /*save_stream=*/0,
++        sw_jpeg_streams_[buffer_index]);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to decode JPEG (nvjpegJpegStreamParse): ",
++        status);
++
++    status = nvjpegStateAttachPinnedBuffer(
++        sw_decoder_state_, sw_pinned_buffers_[buffer_index]);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to attach nvjpeg pinned buffer: ",
++        status);
++
++    status = nvjpegDecodeJpegHost(
++        nvjpeg_handle_,
++        sw_decoder_,
++        sw_decoder_state_,
++        sw_decode_params_,
++        sw_jpeg_streams_[buffer_index]);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to decode JPEG (nvjpegDecodeJpegHost): ",
++        status);
++
++    if (needs_sync) {
++      // Why this sync exists:
++      //
++      // The nvjpeg software path is a 3 stage process:
++      // - CPU partial decoding into a pinned buffer
++      // - CPU -> GPU transfer
++      // - GPU final decode
++      //
++      // The supposedly simple nvjpegDecode() API does all three in one
++      // call. But it is not safe and doesn't work when decoding multiple images
++      // in succession: this isn't documented by nvjpeg, but the CPU partial
++      // decoding of image i would be re-using the CPU buffer of image i-1
++      // before the CPU->GPU transfer has finished. This is what caused #1802
++      //
++      // So we use the lower-level APIs and we:
++      // - rely on 2 pinned buffers (A and B below) instead of 1, always
++      //   alternating between them
++      // - add a cudaStreamSynchronize() between the CPU decoding and the
++      //   CPU->GPU transfer.
++      //
++      // Effectively, the sync means that before enqueing the CPU->GPU transfer
++      // of image i on buffer A, we wait for the completion of the CPU->GPU
++      // transfer and GPU decoding work of image i-1 from buffer B. Which means
++      // that buffer B will be safe to use by image i+1, *and* it still allows
++      // us to overlap the GPU work of image i with the CPU work of image i+1.
++      cudaError_t cuda_status = cudaStreamSynchronize(stream);
++      STD_TORCH_CHECK(
++          cuda_status == cudaSuccess,
++          "Failed to synchronize CUDA stream: ",
++          cuda_status);
++    }
++
++    status = nvjpegDecodeJpegTransferToDevice(
++        nvjpeg_handle_,
++        sw_decoder_,
++        sw_decoder_state_,
++        sw_jpeg_streams_[buffer_index],
+         stream);
+     STD_TORCH_CHECK(
+-        status == NVJPEG_STATUS_SUCCESS, "nvjpegDecode failed: ", status);
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to decode JPEG (nvjpegDecodeJpegTransferToDevice): ",
++        status);
++
++    status = nvjpegDecodeJpegDevice(
++        nvjpeg_handle_, sw_decoder_, sw_decoder_state_, &nvjpeg_image, stream);
++    STD_TORCH_CHECK(
++        status == NVJPEG_STATUS_SUCCESS,
++        "Failed to decode JPEG (nvjpegDecodeJpegDevice): ",
++        status);
++
+     output_tensors[idx] = output_tensor;
++    buffer_index = (buffer_index + 1) % kNumSwPinnedBuffers;
++    needs_sync = true;
+   }
+ }
+ 
+diff --git a/src/torchcodec/_core/DecodeJpegCuda.h b/src/torchcodec/_core/DecodeJpegCuda.h
+index 14a430b..8171f36 100644
+--- a/src/torchcodec/_core/DecodeJpegCuda.h
++++ b/src/torchcodec/_core/DecodeJpegCuda.h
+@@ -74,9 +74,17 @@ class CUDAJpegDecoder {
+   nvjpegJpegState_t nvjpeg_state_hw_;
+   nvjpegJpegStream_t nvjpeg_stream_;
+ 
+-  // SW path: state for nvjpegDecode(). Always created, even when the HW engine
+-  // is available, because not all JPEGs are supported by the HW engine.
+-  nvjpegJpegState_t nvjpeg_state_sw_;
++  // SW path, using the decoupled (host / transfer / device) API. Always
++  // created, even when the HW engine is available, because not all JPEGs are
++  // supported by the HW engine. Consecutive images alternate between the two
++  // pinned buffers and jpeg streams. See decode_software().
++  nvjpegJpegDecoder_t sw_decoder_;
++  nvjpegJpegState_t sw_decoder_state_;
++  nvjpegDecodeParams_t sw_decode_params_;
++  nvjpegBufferDevice_t sw_device_buffer_;
++  static constexpr int kNumSwPinnedBuffers = 2;
++  nvjpegBufferPinned_t sw_pinned_buffers_[kNumSwPinnedBuffers];
++  nvjpegJpegStream_t sw_jpeg_streams_[kNumSwPinnedBuffers];
+ };
+ 
+ #endif // TORCHCODEC_ENABLE_NVJPEG
+diff --git a/test/test_decoders.py b/test/test_decoders.py
+index 263f6c6..e8c94a8 100644
+--- a/test/test_decoders.py
++++ b/test/test_decoders.py
+@@ -97,6 +97,7 @@ from .utils import (
+     GRADIENT_JPEG,
+     GRADIENT_MIRRORED_HEIC,
+     GRADIENT_PNG,
++    GRADIENT_PROGRESSIVE_JPEG,
+     GRADIENT_ROTATED_HEIC,
+     GRADIENT_WEBP,
+     GRAYSCALE_16BIT_PNG,
+@@ -6962,7 +6963,9 @@ class TestImageDecoder:
+ 
+     @needs_cuda
+     @needs_jpeg
+-    @pytest.mark.parametrize("asset", (GRADIENT_JPEG, GRAYSCALE_JPEG))
++    @pytest.mark.parametrize(
++        "asset", (GRADIENT_JPEG, GRAYSCALE_JPEG, GRADIENT_PROGRESSIVE_JPEG)
++    )
+     @pytest.mark.parametrize(
+         "mode", ("UNCHANGED", "RGB", "GRAY", "RGB_ALPHA", "GRAY_ALPHA")
+     )
+@@ -6997,6 +7000,45 @@ class TestImageDecoder:
+             assert batch[1].shape[0] == 1
+             assert batch[2].shape[0] == 3
+ 
++    @needs_cuda
++    @needs_jpeg
++    @pytest.mark.parametrize("mode", ("UNCHANGED", "GRAY", "RGB"))
++    def test_cuda_jpeg_batch_mixed_hw_and_sw(self, mode):
++        # On GPUs with a HW JPEG engine, the baseline JPEGs of this batch are
++        # decoded by the HW path and the progressive ones by the SW path, so this
++        # checks that both paths run in a single call and that each output lands
++        # at the index of its source. On other GPUs, everything takes the SW path.
++        assets = [
++            GRADIENT_JPEG,
++            GRADIENT_PROGRESSIVE_JPEG,
++            GRAYSCALE_JPEG,
++            GRADIENT_PROGRESSIVE_JPEG,
++            GRADIENT_JPEG,
++        ]
++        batch = decode_jpeg([a.path for a in assets], mode=mode, device="cuda")
++        assert len(batch) == len(assets)
++        for decoded, asset in zip(batch, assets):
++            assert decoded.shape[1:] == (asset.height, asset.width)
++            single = decode_jpeg(asset.path, mode=mode, device="cuda")
++            assert decoded.shape == single.shape
++            torch.testing.assert_close(decoded, single, atol=0, rtol=0)
++
++    @needs_cuda
++    @needs_jpeg
++    @pytest.mark.parametrize("asset", (GRADIENT_JPEG, GRADIENT_PROGRESSIVE_JPEG))
++    def test_cuda_jpeg_batch_no_corruption(self, asset):
++        # Non-regression test for https://github.com/meta-pytorch/torchcodec/issues/1802
++        # On the nvJPEG SW path (progressive JPEGs, and all JPEGs on GPUs without
++        # a HW JPEG engine), decoding an image could overwrite nvJPEG host buffers
++        # that the previous image's queued GPU work had yet to read, corrupting
++        # all but the last image of the batch. The race is timing-dependent,
++        # hence the many iterations.
++        single = decode_jpeg(asset.path, mode="RGB", device="cuda")
++        for _ in range(50):
++            batch = decode_jpeg([asset.path] * 3, mode="RGB", device="cuda")
++            for decoded in batch:
++                torch.testing.assert_close(decoded, single, atol=0, rtol=0)
++
+     @needs_cuda
+     @needs_jpeg
+     def test_cuda_jpeg_single_vs_list_return_type(self):
+@@ -7010,7 +7052,7 @@ class TestImageDecoder:
+     @needs_jpeg
+     def test_cuda_jpeg_errors(self):
+         # Corrupt input raises.
+-        with pytest.raises(RuntimeError, match="nvjpegDecode failed:"):
++        with pytest.raises(RuntimeError, match="Failed to decode JPEG"):
+             decode_jpeg(CORRUPT_JPEG.path, device="cuda")
+ 
+         cuda_data = torch.frombuffer(
+diff --git a/test/utils.py b/test/utils.py
+index 9da7f2c..ed3f367 100644
+--- a/test/utils.py
++++ b/test/utils.py
+@@ -297,6 +297,16 @@ GRAYSCALE_JPEG = TestImage(
+ # Image.fromarray(rgb).convert("CMYK").save("cmyk.jpg", quality=90)
+ CMYK_JPEG = TestImage(filename="cmyk.jpg", width=1280, height=720, num_channels=4)
+ 
++# 360p progressive RGB JPEG. nvJPEG's HW engine doesn't support progressive
++# JPEGs, so on GPUs that have one, this is decoded by the SW path. Its size
++# differs from GRADIENT_JPEG on purpose so that batch tests can tell them apart.
++# Generated with the GRADIENT_JPEG recipe above with h, w = 360, 640, then:
++# Image.fromarray(np.stack([r, g, b], axis=-1)).save(
++#     "gradient_progressive.jpg", quality=90, progressive=True)
++GRADIENT_PROGRESSIVE_JPEG = TestImage(
++    filename="gradient_progressive.jpg", width=640, height=360, num_channels=3
++)
++
+ # JPEG with a bad Huffman table (damaged but still decodable). Taken from
+ # torchvision's test assets (test/assets/damaged_jpeg/bad_huffman.jpg).
+ BAD_HUFFMAN_JPEG = TestImage(
