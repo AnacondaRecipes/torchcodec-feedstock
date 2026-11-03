@@ -92,6 +92,11 @@ requirements:
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
+# These write their input video first; without libx264 they fall back to mpeg4, which rejects yuv444p.
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestLowLevelAPIs::test_video_seek" %}
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestLowLevelAPIs::test_multi_stream" %}
+# Streams libx264 into a fifo; without the encoder the reader blocks until the task times out.
+{% set tests_to_ignore = tests_to_ignore + " --deselect test/test_decoders.py::TestLowLevel::test_seek_on_non_seekable_source_raises" %}  # [unix]
 
 # requires CUDA enabled ffmpeg, which we don't currently have on main
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestEncoder::test_cuda_encoding" %}
