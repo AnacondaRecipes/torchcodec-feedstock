@@ -11,18 +11,23 @@ package:
   version: {{ version }}
 
 source:
-  - url: https://github.com/meta-pytorch/torchcodec/archive/refs/tags/v{{ version }}.tar.gz
+  - url: https://github.com/meta-pytorch/{{ name }}/archive/refs/tags/v{{ version }}.tar.gz
     sha256: 095b45702643875516d79c20005bdd05fb998368b4e4cd63e97e01e133c8a34d
     patches:
-      - patches/fix_third_party_interface_library_loading.patch
-      # Upstream compiles a vendored giflib; link the channel's giflib instead.
+      # Upstream downloads a prebuilt libavif from S3 and compiles a vendored giflib;
+      # link the channel's libavif and giflib instead.
+      - patches/use_system_libavif.patch
       - patches/use_system_giflib.patch
       - patches/use_correct_python_on_windows.patch # [win]
 
 build:
   number: {{ build_num }}
   # pytorch 2.15 requires python >=3.11 (no py3.10 builds); torchcodec itself allows >=3.10.
-  skip: true  # [py<311]
+  # Upstream documents support up to 3.14 (README); 3.15 is validated only by this CI.
+  skip: true  # [py<311 or py>315]
+  # zlib is only needed by FindPNG at configure time; libtorchcodec does not link it.
+  ignore_run_exports_from:
+    - zlib
   string: cpu_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cpu"]
   string: cuda{{ cuda_compiler_version | replace('.', '') }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build_num }} # [gpu_variant == "cuda"]
   missing_dso_whitelist:
@@ -47,15 +52,16 @@ requirements:
     - libtorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
     - pytorch {{ pytorch }}=*cpu*    # [gpu_variant=="cpu"]
     - pytorch {{ pytorch }}=*cuda*   # [gpu_variant=="cuda"]
-    - pybind11
+    # Matches the pytorch-feedstock 2.15 pybind11 pin (no aggregate CBC key).
+    - pybind11 >=3.0.4,<4
     - pybind11-abi
-    # Image decoders (JPEG, PNG, WebP, GIF). AVIF and HEIC are disabled in the
-    # build scripts: the channel's libavif 1.4.2 has no AV1 codec built in, and
-    # libheif is not available.
+    # Image decoders (JPEG, PNG, WebP, AVIF, GIF). HEIC is disabled in the build
+    # scripts because libheif is not available on the channel.
     - libjpeg-turbo {{ libjpeg_turbo }}
     - libpng {{ libpng }}
     - zlib {{ zlib }}
     - libwebp-base {{ libwebp_base }}
+    - libavif {{ libavif }}
     - giflib {{ giflib }}
     # These are dev packages (headers etc.) for transitive dependencies of libtorch
     - cuda-version =={{ cuda_compiler_version }} # [gpu_variant == "cuda"]
@@ -92,7 +98,8 @@ requirements:
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/test_encoders.py::TestVideoEncoder" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestVideoDecoder" %}
-# These write their input video first; without libx264 they fall back to mpeg4, which rejects yuv444p.
+# These write their input video first without libx264: the [cpu] case falls back to mpeg4, which
+# rejects yuv444p; the [cuda] case encodes yuv420p and then fails its closeness check.
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestLowLevelAPIs::test_video_seek" %}
 {% set tests_to_ignore = tests_to_ignore + " --deselect test/smoke_test.py::TestLowLevelAPIs::test_multi_stream" %}
 # Streams libx264 into a fifo; without the encoder the reader blocks until the task times out.
@@ -122,18 +129,28 @@ test:
     - pillow
     - torchvision
     - pip
+    # TEMPORARY, remove with the abs.yaml channel: pkgs/main libavif 1.4.2 build 0 has no AV1
+    # codec; force build 1 (libavif-feedstock#8) over it in the test env.
+    - libavif >=1.4.2 *_1
   imports:
     - torchcodec
   commands:
     - pip check
+    # Fail instead of skipping when an image codec we build is missing (HEIC is not built).
+    - export FAIL_WITHOUT_IMAGE_CODECS=1 FAIL_WITHOUT_HEIC=0  # [unix]
+    - set FAIL_WITHOUT_IMAGE_CODECS=1  # [win]
+    - set FAIL_WITHOUT_HEIC=0  # [win]
     - pytest {{ tests }} -v -s  --durations=50 {{ tests_to_ignore }} -k "not ({{skip_tests}})"
 
 about:
   home: https://github.com/meta-pytorch/torchcodec
-  license: BSD-3-Clause
+  # MIT: the NVIDIA Video Codec SDK headers shipped under _core/nvcuvid_include.
+  license: BSD-3-Clause AND MIT
   license_file:
     - LICENSE
-  license_family: BSD
+    - src/torchcodec/_core/nvcuvid_include/nvcuvid.h
+    - src/torchcodec/_core/nvcuvid_include/cuviddec.h
+  license_family: Other
   summary: TorchCodec is a Python library for decoding videos into PyTorch tensors, on CPU and CUDA GPU.
   description: |
     TorchCodec is a Python library for decoding video and audio data into PyTorch

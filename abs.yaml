@@ -1,7 +1,7 @@
-# TEMPORARY: torchvision 0.29.2 for pytorch 2.15 (test dependency) from the
-# AnacondaRecipes/torchvision-feedstock#58 PR graph. Remove once it is released.
+# TEMPORARY: libavif 1.4.2 build 1 (AV1 codecs compiled in) from the
+# AnacondaRecipes/libavif-feedstock#8 PR graph. Remove once it is released.
 channels:
-  - https://package-build.internal.anaconda.com/pkg-orchestrator/v1/channels/graphs/10f07fd8-032e-4373-91e7-cba408649237
+  - https://package-build.internal.anaconda.com/pkg-orchestrator/v1/channels/graphs/7392aa4f-4e21-4e58-a871-29ef169e9bd7
 
 # Opt into the experimental Python 3.15 variant. Gated in the aggregate
 # conda_build_config.yaml on ANACONDA_ROCKET_ENABLE_PY315 only.
