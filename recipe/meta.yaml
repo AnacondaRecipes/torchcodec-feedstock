@@ -135,9 +135,6 @@ test:
     - pillow
     - torchvision
     - pip
-    # TEMPORARY, remove with the abs.yaml channel: pkgs/main libavif 1.4.2 build 0 has no AV1
-    # codec; force build 1 (libavif-feedstock#8) over it in the test env.
-    - libavif >=1.4.2 *_1
   imports:
     - torchcodec
   commands:
