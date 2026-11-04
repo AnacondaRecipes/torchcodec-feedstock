@@ -8,8 +8,9 @@ cuda_compiler_version: # [linux or win or osx]
   - 12.9 # [(win and x86_64) or (linux and x86_64)]
   - 13.0 # [(win and x86_64) or linux]
 
+# Aggregate CBC still pins pytorch 2.14; drop this once it moves to 2.15.
 pytorch:
-  - 2.13
+  - 2.15
 
 zip_keys: # [linux or win]
   -       # [linux or win]

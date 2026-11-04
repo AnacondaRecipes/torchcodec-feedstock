@@ -1,0 +1,40 @@
+From 08b6aa37601687e7a1fbffdf7751a1ec926085ad Mon Sep 17 00:00:00 2001
+From: xkong-anaconda <xkong@anaconda.com>
+Date: Mon, 2 Nov 2026 13:19:31 -0600
+Subject: [PATCH] Link the system libavif instead of downloading a prebuilt one
+ from S3
+
+Upstream's fetch_avif_from_s3.cmake downloads a prebuilt decode-only libavif tarball from pytorch.s3.amazonaws.com at configure time (with no win-arm64 build). Conda builds have no network access and must build from source, so find the packaged libavif through its CMake config, which exports the avif target make_torchcodec_image_library() links against.
+
+Adapted from conda-forge/torchcodec-feedstock use_conda_forge_libavif.patch.
+---
+ src/torchcodec/_core/CMakeLists.txt | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/src/torchcodec/_core/CMakeLists.txt b/src/torchcodec/_core/CMakeLists.txt
+index 1bcb5f8..a316089 100644
+--- a/src/torchcodec/_core/CMakeLists.txt
++++ b/src/torchcodec/_core/CMakeLists.txt
+@@ -139,9 +139,19 @@ function(discover_image_codecs)
+ 
+     resolve_image_codec("${TORCHCODEC_BUILD_AVIF}" want_avif)
+     if(want_avif)
+-        include(${CMAKE_CURRENT_SOURCE_DIR}/fetch_avif_from_s3.cmake)
+-        set(libavif_FOUND TRUE)
+-        message(STATUS "Building torchcodec with AVIF image decoding support (libavif from S3).")
++        if(NOT DEFINED libavif_ROOT AND DEFINED ENV{CONDA_PREFIX})
++            if(WIN32)
++                set(libavif_ROOT "$ENV{CONDA_PREFIX}/Library")
++            else()
++                set(libavif_ROOT "$ENV{CONDA_PREFIX}")
++            endif()
++        endif()
++        find_package(libavif CONFIG REQUIRED)
++        if(NOT TARGET avif AND TARGET avif::avif)
++            add_library(avif INTERFACE IMPORTED)
++            target_link_libraries(avif INTERFACE avif::avif)
++        endif()
++        message(STATUS "Building torchcodec with AVIF image decoding support (system libavif).")
+     else()
+         message(STATUS "Not building torchcodec with AVIF image decoding support (disabled via TORCHCODEC_BUILD_AVIF/TORCHCODEC_BUILD_IMAGE): decode_avif will raise at runtime.")
+     endif()

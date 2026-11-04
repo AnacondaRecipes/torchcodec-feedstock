@@ -1,6 +1,10 @@
 #!/bin/sh
 set -ex
 
+# Otherwise the scikit-build-core version provider (packaging/torchcodec_version.py)
+# appends the sha of whatever git repository contains the work directory.
+export BUILD_VERSION="${PKG_VERSION}"
+
 if [[ ${gpu_variant} != "cuda" ]]; then
    export ENABLE_CUDA=0
 else
@@ -36,6 +40,13 @@ export TORCHCODEC_DISABLE_HOMEBREW_RPATH=ON
 
 # Use Ninja generator for consistency with Windows
 export CMAKE_GENERATOR=Ninja
+
+# libheif is not available on the channel: build without HEIC (decode_heic raises at runtime).
+export TORCHCODEC_BUILD_HEIC=0
+
+# use_system_giflib.patch links the channel's giflib, so drop the vendored copy
+# rather than shipping its sources inside site-packages.
+rm -rf src/torchcodec/_core/giflib
 
 $PYTHON -m pip install . --no-deps --no-build-isolation -vv
 

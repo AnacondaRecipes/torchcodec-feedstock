@@ -1,0 +1,80 @@
+From d4f685a4f5ae26da61107156b3c41d18b4f428d6 Mon Sep 17 00:00:00 2001
+From: xkong-anaconda <xkong@anaconda.com>
+Date: Mon, 2 Nov 2026 13:19:32 -0600
+Subject: [PATCH] Link the system giflib instead of the vendored copy
+
+Upstream vendors a decode-only subset of GIFLIB 5.2.2 under src/torchcodec/_core/giflib/ and compiles it statically into libtorchcodec_image. Use the packaged giflib through CMake's FindGIF (GIF::GIF) instead, so there is a single, separately updatable copy of the codec. The decode API DecodeGif.cpp uses (DGifOpen/DGifSlurp/DGifSavedExtensionToGCB/DGifCloseFile) is unchanged in giflib 6.1.
+
+Adapted from conda-forge/torchcodec-feedstock use_conda_forge_giflib.patch.
+---
+ src/torchcodec/_core/CMakeLists.txt | 27 ++++++++++++++++++++-------
+ src/torchcodec/_core/DecodeGif.cpp  |  2 +-
+ 2 files changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/src/torchcodec/_core/CMakeLists.txt b/src/torchcodec/_core/CMakeLists.txt
+index a316089..d6dc62f 100644
+--- a/src/torchcodec/_core/CMakeLists.txt
++++ b/src/torchcodec/_core/CMakeLists.txt
+@@ -158,7 +158,23 @@ function(discover_image_codecs)
+ 
+     resolve_image_codec("${TORCHCODEC_BUILD_GIF}" want_gif)
+     if(want_gif)
+-        message(STATUS "Building torchcodec with GIF image decoding support (vendored giflib).")
++        if(NOT DEFINED GIF_ROOT AND DEFINED ENV{CONDA_PREFIX})
++            if(WIN32)
++                set(GIF_ROOT "$ENV{CONDA_PREFIX}/Library")
++            else()
++                set(GIF_ROOT "$ENV{CONDA_PREFIX}")
++            endif()
++        endif()
++        find_package(GIF)  # Provides the GIF::GIF target.
++        if(GIF_FOUND)
++            message(STATUS "giflib found: building torchcodec with GIF image decoding support.")
++        else()
++            message(FATAL_ERROR
++                "giflib not found, but GIF image decoding is enabled. Install "
++                "giflib and its development headers, or set TORCHCODEC_BUILD_GIF=0 "
++                "to build without GIF support (decode_gif will raise at runtime), "
++                "or TORCHCODEC_BUILD_IMAGE=0 to disable all image decoders.")
++        endif()
+     else()
+         message(STATUS "Not building torchcodec with GIF image decoding support (disabled via TORCHCODEC_BUILD_GIF/TORCHCODEC_BUILD_IMAGE): decode_gif will raise at runtime.")
+     endif()
+@@ -492,9 +508,6 @@ function(make_torchcodec_image_library)
+         ${TORCHCODEC_IMAGE_OPS_SOURCES}
+         ${TORCHCODEC_IO_SOURCES}
+     )
+-    if(want_gif)
+-        list(APPEND image_library_sources ${TORCHCODEC_GIFLIB_SOURCES})
+-    endif()
+ 
+     make_torchcodec_sublibrary(
+         "${image_library_name}"
+@@ -533,11 +546,11 @@ function(make_torchcodec_image_library)
+     endif()
+     if(want_gif)
+         target_compile_definitions(${image_library_name} PRIVATE TORCHCODEC_ENABLE_GIF=1)
++        target_link_libraries(${image_library_name} PRIVATE GIF::GIF)
+     endif()
+ 
+-    # Hide our own (and statically linked giflib's) symbols so the only thing
+-    # exported is the torch op registration. Belt-and-suspenders on top of the
+-    # RTLD_LOCAL isolation.
++    # Hide our own symbols so the only thing exported is the torch op
++    # registration. Belt-and-suspenders on top of the RTLD_LOCAL isolation.
+     if(LINUX)
+         target_compile_options(${image_library_name} PRIVATE "-fvisibility=hidden")
+     endif()
+diff --git a/src/torchcodec/_core/DecodeGif.cpp b/src/torchcodec/_core/DecodeGif.cpp
+index 3e7b2f7..9373efd 100644
+--- a/src/torchcodec/_core/DecodeGif.cpp
++++ b/src/torchcodec/_core/DecodeGif.cpp
+@@ -37,7 +37,7 @@ torch::stable::Tensor decode_gif(
+ #include <optional>
+ 
+ #include "ImageCommon.h"
+-#include "giflib/gif_lib.h"
++#include <gif_lib.h>
+ 
+ namespace facebook::torchcodec {
+ 
